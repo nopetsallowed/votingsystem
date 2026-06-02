@@ -487,8 +487,16 @@ public class VotingController {
       Position position = db.positions.stream().filter(p -> p.id.equals(posId)).findFirst().orElse(null);
       if (position == null) return null;
       Map<String, Object> item = objectMap(position);
-      item.put("winnerSlots", winnerSlotsForElectionPosition(db, election, posId));
-      item.put("voted", db.votes.stream().anyMatch(v -> v.voterId.equals(voter.id) && v.electionId.equals(id) && v.positionId.equals(posId)));
+      int winnerSlots = winnerSlotsForElectionPosition(db, election, posId);
+      List<String> votedCandidateIds = db.votes.stream()
+          .filter(v -> v.voterId.equals(voter.id) && v.electionId.equals(id) && v.positionId.equals(posId))
+          .map(v -> v.candidateId)
+          .distinct()
+          .toList();
+      item.put("winnerSlots", winnerSlots);
+      item.put("voteCount", votedCandidateIds.size());
+      item.put("votedCandidateIds", votedCandidateIds);
+      item.put("voted", votedCandidateIds.size() >= winnerSlots);
       List<Map<String, Object>> candidates = db.candidates.stream()
           .filter(c -> c.positionId.equals(posId))
           .filter(c -> candidateBelongsToElectionParty(election, c))
@@ -533,12 +541,19 @@ public class VotingController {
     if (!voter.approved) return error(HttpStatus.FORBIDDEN, "Your voter card registration is pending administrator approval.");
     Election election = db.elections.stream().filter(e -> e.id.equals(electionId)).findFirst().orElse(null);
     if (election == null || !"ACTIVE".equals(election.status)) return error(HttpStatus.BAD_REQUEST, "This election is not currently active for vote submission");
-    if (db.votes.stream().anyMatch(v -> v.voterId.equals(voter.id) && v.electionId.equals(electionId) && v.positionId.equals(positionId))) return error(HttpStatus.BAD_REQUEST, "Our system has already recorded a choice for this electoral seat.");
     Candidate candidate = db.candidates.stream().filter(c -> c.id.equals(candidateId)).findFirst().orElse(null);
     if (candidate == null || !positionId.equals(candidate.positionId)) return error(HttpStatus.BAD_REQUEST, "Candidate selected is invalid for this seat placement");
     List<String> orderedPositionIds = sortedElectionPositionIds(db, election);
     if (!orderedPositionIds.contains(positionId)) return error(HttpStatus.BAD_REQUEST, "This position is not mapped to the selected election");
     if (!candidateBelongsToElectionParty(election, candidate)) return error(HttpStatus.BAD_REQUEST, "Candidate selected is not part of a participating party for this election");
+    int winnerSlots = winnerSlotsForElectionPosition(db, election, positionId);
+    long votesForPosition = db.votes.stream()
+        .filter(v -> v.voterId.equals(voter.id) && v.electionId.equals(electionId) && v.positionId.equals(positionId))
+        .count();
+    if (votesForPosition >= winnerSlots) return error(HttpStatus.BAD_REQUEST, "Our system has already recorded all required choices for this electoral seat.");
+    if (db.votes.stream().anyMatch(v -> v.voterId.equals(voter.id) && v.electionId.equals(electionId) && v.positionId.equals(positionId) && v.candidateId.equals(candidateId))) {
+      return error(HttpStatus.BAD_REQUEST, "You have already selected this candidate for this electoral seat.");
+    }
     Vote vote = new Vote("vt_" + id(), voter.id, candidateId, electionId, positionId, now(), ip(request));
     AuditLog auditLog = new AuditLog("lg_" + id(), "CAST_VOTE", userId, userName(db, userId), "Success vote on position " + positionId + " in election " + electionId, ip(request), now());
     store.insertVoteWithAuditLog(vote, auditLog);

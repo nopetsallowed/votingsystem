@@ -12,7 +12,12 @@ import { User as UserType, Voter, Election, Position, Candidate } from "../types
 import { apiFetch } from "../api";
 
 type BallotCandidate = Candidate & { party?: any };
-type BallotPosition = Position & { voted: boolean; candidates?: BallotCandidate[] };
+type BallotPosition = Position & {
+  voted: boolean;
+  voteCount?: number;
+  votedCandidateIds?: string[];
+  candidates?: BallotCandidate[];
+};
 
 interface VoterDashboardProps {
   voterToken: string;
@@ -175,7 +180,17 @@ export default function VoterDashboard({
       setShowConfirmModal(false);
       setSelectedCandidate(null);
       setSelectedPositionForVote(null);
-      setElectionPositions(positions => positions.map(pos => pos.id === positionId ? { ...pos, voted: true } : pos));
+      setElectionPositions(positions => positions.map(pos => {
+        if (pos.id !== positionId) return pos;
+        const winnerSlots = Math.max(1, pos.winnerSlots || 1);
+        const votedCandidateIds = Array.from(new Set([...(pos.votedCandidateIds || []), selectedCandidate.id]));
+        return {
+          ...pos,
+          voteCount: votedCandidateIds.length,
+          votedCandidateIds,
+          voted: votedCandidateIds.length >= winnerSlots
+        };
+      }));
       
       // Auto return to voting room overview
       setTimeout(() => {
@@ -431,10 +446,14 @@ export default function VoterDashboard({
                       <Landmark className="w-3.5 h-3.5 mr-1 text-blue-500" />
                       <span>Official Ballot ({electionPositions.length})</span>
                     </h3>
-                    <p className="text-[10px] text-slate-400">All available positions are unlocked. You may vote for any unvoted seat in any order.</p>
+                    <p className="text-[10px] text-slate-400">All positions are unlocked. For multi-slot positions, select the required number of candidates to complete that seat.</p>
 
                     <div className="space-y-5">
-                      {electionPositions.map(pos => (
+                      {electionPositions.map(pos => {
+                        const winnerSlots = Math.max(1, pos.winnerSlots || 1);
+                        const voteCount = Math.min(pos.voteCount || pos.votedCandidateIds?.length || 0, winnerSlots);
+                        const isPositionComplete = voteCount >= winnerSlots;
+                        return (
                         <div key={pos.id} className="border border-slate-200 rounded bg-white overflow-hidden shadow-sm">
                           <div>
                             <div className="flex justify-between items-start gap-3 bg-slate-50 border-b border-slate-200 px-4 py-3">
@@ -442,10 +461,13 @@ export default function VoterDashboard({
                                 <h4 className="font-bold text-slate-950 text-base leading-tight">{pos.positionName}</h4>
                                 <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">{pos.description || "Select one candidate for this position."}</p>
                                 <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-blue-600">
-                                  {Math.max(1, pos.winnerSlots || 1)} winner slot{Math.max(1, pos.winnerSlots || 1) === 1 ? "" : "s"}
+                                  Select {winnerSlots} candidate{winnerSlots === 1 ? "" : "s"} for this position
+                                </p>
+                                <p className="mt-0.5 text-[9px] font-mono text-slate-400">
+                                  Choices signed: {voteCount}/{winnerSlots}
                                 </p>
                               </div>
-                              {pos.voted ? (
+                              {isPositionComplete ? (
                                 <span className="px-1.5 py-0.5 bg-green-100 text-green-800 text-[8px] font-bold rounded uppercase tracking-wide border border-green-200">
                                   ✓ Signed
                                 </span>
@@ -462,7 +484,10 @@ export default function VoterDashboard({
                               </div>
                             ) : (
                               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-4">
-                                {(pos.candidates || []).map(cand => (
+                                {(pos.candidates || []).map(cand => {
+                                  const alreadySelected = (pos.votedCandidateIds || []).includes(cand.id);
+                                  const isChoiceDisabled = alreadySelected || isPositionComplete;
+                                  return (
                                   <div
                                     key={cand.id}
                                     className="border border-slate-200 rounded bg-white p-3 flex flex-col justify-between gap-3 shadow-sm"
@@ -501,27 +526,27 @@ export default function VoterDashboard({
                                     )}
 
                                     <button
-                                      disabled={pos.voted}
+                                      disabled={isChoiceDisabled}
                                       onClick={() => {
                                         setSelectedCandidate(cand);
                                         setSelectedPositionForVote(pos);
                                         setShowConfirmModal(true);
                                       }}
                                       className={`w-full py-1.5 text-[10px] font-bold rounded border shadow-sm transition text-center ${
-                                        pos.voted
+                                        isChoiceDisabled
                                           ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
                                           : "bg-blue-600 hover:bg-blue-500 text-white border-blue-700 cursor-pointer"
                                       }`}
                                     >
-                                      {pos.voted ? "Already Voted" : "Select Candidate"}
+                                      {alreadySelected ? "Selected" : isPositionComplete ? "Slots Filled" : "Select Candidate"}
                                     </button>
                                   </div>
-                                ))}
+                                )})}
                               </div>
                             )}
                           </div>
                         </div>
-                      ))}
+                      )})}
                     </div>
                   </div>
                 )}
