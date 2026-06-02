@@ -1006,9 +1006,6 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
                       <div>
                         <p className="font-bold text-slate-800">{p.positionName}</p>
                         <p className="text-[10px] text-slate-400">{p.description || "No description provided."}</p>
-                        <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-blue-600">
-                          {Math.max(1, p.winnerSlots || 1)} winner slot{Math.max(1, p.winnerSlots || 1) === 1 ? "" : "s"}
-                        </p>
                       </div>
                       <div className="flex items-center gap-1">
                         <button
