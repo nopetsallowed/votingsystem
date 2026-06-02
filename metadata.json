@@ -1,0 +1,6 @@
+{
+  "name": "VoteSystem",
+  "description": "Secure, transparent digital voting web application with advanced administration, real-time results, voter registration approval, and multiple election profiles.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
