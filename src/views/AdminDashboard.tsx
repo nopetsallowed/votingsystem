@@ -530,9 +530,9 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
           endDate: elEnd,
           banner: elBanner,
           partyIds: elSelectedParties,
-          positions: elSelectedPositions,
+          positions: sortPositionIds(elSelectedPositions),
           positionWinnerSlots: Object.fromEntries(
-            elSelectedPositions.map(positionId => [positionId, Math.max(1, Math.floor(Number(elPositionWinnerSlots[positionId]) || defaultWinnerSlotsForPosition(positionId)))])
+            sortPositionIds(elSelectedPositions).map(positionId => [positionId, Math.max(1, Math.floor(Number(elPositionWinnerSlots[positionId]) || defaultWinnerSlotsForPosition(positionId)))])
           )
         })
       });
@@ -570,7 +570,7 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
     setElEnd(toDateTimeLocal(election.endDate));
     setElBanner(election.banner || "");
     setElSelectedParties(election.partyIds || []);
-    setElSelectedPositions(election.positions || []);
+    setElSelectedPositions(sortPositionIds(election.positions || []));
     setElPositionWinnerSlots(Object.fromEntries(
       (election.positions || []).map(positionId => [
         positionId,
@@ -632,14 +632,14 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
 
   const toggleElectionPositionMapping = (id: string) => {
     if (elSelectedPositions.includes(id)) {
-      setElSelectedPositions(elSelectedPositions.filter(p => p !== id));
+      setElSelectedPositions(sortPositionIds(elSelectedPositions.filter(p => p !== id)));
       setElPositionWinnerSlots(slots => {
         const next = { ...slots };
         delete next[id];
         return next;
       });
     } else {
-      setElSelectedPositions([...elSelectedPositions, id]);
+      setElSelectedPositions(sortPositionIds([...elSelectedPositions, id]));
       setElPositionWinnerSlots(slots => ({ ...slots, [id]: slots[id] || defaultWinnerSlotsForPosition(id) }));
     }
   };
@@ -647,7 +647,7 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
   const toggleElectionPartyMapping = (id: string) => {
     setElSelectedParties((selected) => {
       const next = selected.includes(id) ? selected.filter(partyId => partyId !== id) : [...selected, id];
-      setElSelectedPositions((positionIds) => positionIds.filter(positionId => positions.some(position => position.id === positionId)));
+      setElSelectedPositions((positionIds) => sortPositionIds(positionIds.filter(positionId => positions.some(position => position.id === positionId))));
       return next;
     });
   };
@@ -656,7 +656,36 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
     return candidates.some(candidate => candidate.positionId === positionId && selectedPartyIds.includes(candidate.partyId || ""));
   };
 
-  const eligibleElectionPositions = positions;
+  const positionRank = (positionName?: string) => {
+    const normalized = (positionName || "").toLowerCase().replace(/\./g, "").replace(/-/g, " ").trim();
+    if (normalized === "president") return 0;
+    if (normalized === "vice president") return 1;
+    if (normalized === "secretary") return 2;
+    if (normalized === "treasurer") return 3;
+    if (normalized === "auditor") return 4;
+    if (normalized === "pio" || normalized === "public information officer") return 5;
+    if (normalized === "business manager") return 6;
+    if (normalized === "representative") return 7;
+    return 1000;
+  };
+
+  const sortedPositions = [...positions].sort((a, b) => {
+    const rankDiff = positionRank(a.positionName) - positionRank(b.positionName);
+    if (rankDiff !== 0) return rankDiff;
+    return a.positionName.localeCompare(b.positionName);
+  });
+
+  const sortPositionIds = (positionIds: string[] = []) => {
+    return [...positionIds].sort((a, b) => {
+      const posA = positions.find(position => position.id === a);
+      const posB = positions.find(position => position.id === b);
+      const rankDiff = positionRank(posA?.positionName) - positionRank(posB?.positionName);
+      if (rankDiff !== 0) return rankDiff;
+      return (posA?.positionName || "").localeCompare(posB?.positionName || "");
+    });
+  };
+
+  const eligibleElectionPositions = sortedPositions;
 
   const defaultWinnerSlotsForPosition = (positionId: string) => {
     return Math.max(1, positions.find(position => position.id === positionId)?.winnerSlots || 1);
@@ -1001,7 +1030,7 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
                 <p className="text-xs text-slate-400 py-4 text-center">No structural positions created yet.</p>
               ) : (
                 <div className="divide-y divide-slate-150 text-xs text-left">
-                  {positions.map(p => (
+                  {sortedPositions.map(p => (
                     <div key={p.id} className="py-2 flex justify-between items-center bg-white">
                       <div>
                         <p className="font-bold text-slate-800">{p.positionName}</p>
@@ -1217,7 +1246,7 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
                     <div className="space-y-1 text-left">
                       <span className="text-[8px] font-mono tracking-wider font-bold text-slate-400 uppercase">BALLOT SEATS GRANTED</span>
                       <div className="flex flex-wrap gap-1">
-                        {election.positions.map(pid => (
+                        {sortPositionIds(election.positions).map(pid => (
                           <span key={pid} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 font-semibold text-[9px] border border-blue-100 rounded-sm">
                             {getPositionName(pid)} - {Math.max(1, election.positionWinnerSlots?.[pid] || defaultWinnerSlotsForPosition(pid))} slot{Math.max(1, election.positionWinnerSlots?.[pid] || defaultWinnerSlotsForPosition(pid)) === 1 ? "" : "s"}
                           </span>
@@ -1736,7 +1765,7 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
                   <label className="text-[10px] font-bold text-slate-600 uppercase font-mono">Contested placement</label>
                   <select required value={candPosId} onChange={(e) => setCandPosId(e.target.value)} className="w-full px-2 py-1.5 border border-slate-200 rounded text-xs font-sans bg-white">
                     <option value="">Select placement Seat</option>
-                    {positions.map(p => (
+                    {sortedPositions.map(p => (
                       <option key={p.id} value={p.id}>{p.positionName}</option>
                     ))}
                   </select>

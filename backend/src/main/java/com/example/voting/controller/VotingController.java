@@ -387,10 +387,10 @@ public class VotingController {
     if (blank(body.electionName) || blank(body.startDate) || blank(body.endDate) || body.partyIds == null || body.partyIds.isEmpty() || body.positions == null || body.positions.isEmpty()) return error(HttpStatus.BAD_REQUEST, "Election name, bounds, participating parties, and mapped positions are required");
     List<String> validPartyIds = body.partyIds.stream().filter(partyId -> db.parties.stream().anyMatch(p -> p.id.equals(partyId))).distinct().toList();
     if (validPartyIds.isEmpty()) return error(HttpStatus.BAD_REQUEST, "Select at least one existing party for this election");
-    List<String> validPositionIds = body.positions.stream()
+    List<String> validPositionIds = sortedPositionIds(db, body.positions.stream()
         .filter(positionId -> db.positions.stream().anyMatch(p -> p.id.equals(positionId)))
         .distinct()
-        .toList();
+        .toList());
     if (validPositionIds.isEmpty()) return error(HttpStatus.BAD_REQUEST, "Select at least one existing position for this election");
     String now = now();
     body.id = "el_" + id();
@@ -418,10 +418,10 @@ public class VotingController {
     }
     List<String> validPartyIds = body.partyIds.stream().filter(partyId -> db.parties.stream().anyMatch(p -> p.id.equals(partyId))).distinct().toList();
     if (validPartyIds.isEmpty()) return error(HttpStatus.BAD_REQUEST, "Select at least one existing party for this election");
-    List<String> validPositionIds = body.positions.stream()
+    List<String> validPositionIds = sortedPositionIds(db, body.positions.stream()
         .filter(positionId -> db.positions.stream().anyMatch(p -> p.id.equals(positionId)))
         .distinct()
-        .toList();
+        .toList());
     if (validPositionIds.isEmpty()) return error(HttpStatus.BAD_REQUEST, "Select at least one existing position for this election");
 
     election.electionName = body.electionName;
@@ -647,6 +647,24 @@ public class VotingController {
     }
 
     return election.positions.stream()
+        .distinct()
+        .sorted(Comparator
+            .comparingInt((String positionId) -> db.positions.stream()
+                .filter(position -> position.id.equals(positionId))
+                .findFirst()
+                .map(position -> positionRank(position.positionName))
+                .orElse(1000))
+            .thenComparingInt(positionId -> savedOrder.getOrDefault(positionId, 1000)))
+        .toList();
+  }
+
+  private static List<String> sortedPositionIds(Database db, List<String> positionIds) {
+    Map<String, Integer> savedOrder = new LinkedHashMap<>();
+    for (int i = 0; i < positionIds.size(); i++) {
+      savedOrder.putIfAbsent(positionIds.get(i), i);
+    }
+
+    return positionIds.stream()
         .distinct()
         .sorted(Comparator
             .comparingInt((String positionId) -> db.positions.stream()
