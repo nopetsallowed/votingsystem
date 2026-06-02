@@ -82,6 +82,7 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
   const [elBanner, setElBanner] = useState("");
   const [elSelectedParties, setElSelectedParties] = useState<string[]>([]);
   const [elSelectedPositions, setElSelectedPositions] = useState<string[]>([]);
+  const [elPositionWinnerSlots, setElPositionWinnerSlots] = useState<Record<string, number>>({});
 
   // Candidate Form
   const [candName, setCandName] = useState("");
@@ -529,7 +530,10 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
           endDate: elEnd,
           banner: elBanner,
           partyIds: elSelectedParties,
-          positions: elSelectedPositions
+          positions: elSelectedPositions,
+          positionWinnerSlots: Object.fromEntries(
+            elSelectedPositions.map(positionId => [positionId, Math.max(1, Math.floor(Number(elPositionWinnerSlots[positionId]) || defaultWinnerSlotsForPosition(positionId)))])
+          )
         })
       });
 
@@ -543,6 +547,7 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
       setElBanner("");
       setElSelectedParties([]);
       setElSelectedPositions([]);
+      setElPositionWinnerSlots({});
       setEditingElectionId(null);
       setShowElectionModal(false);
       setSuccessNotice(editingElectionId ? "Electoral profile updated." : "Electoral profile recorded in database.");
@@ -566,6 +571,12 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
     setElBanner(election.banner || "");
     setElSelectedParties(election.partyIds || []);
     setElSelectedPositions(election.positions || []);
+    setElPositionWinnerSlots(Object.fromEntries(
+      (election.positions || []).map(positionId => [
+        positionId,
+        Math.max(1, election.positionWinnerSlots?.[positionId] || defaultWinnerSlotsForPosition(positionId))
+      ])
+    ));
     setShowElectionModal(true);
   };
 
@@ -622,8 +633,14 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
   const toggleElectionPositionMapping = (id: string) => {
     if (elSelectedPositions.includes(id)) {
       setElSelectedPositions(elSelectedPositions.filter(p => p !== id));
+      setElPositionWinnerSlots(slots => {
+        const next = { ...slots };
+        delete next[id];
+        return next;
+      });
     } else {
       setElSelectedPositions([...elSelectedPositions, id]);
+      setElPositionWinnerSlots(slots => ({ ...slots, [id]: slots[id] || defaultWinnerSlotsForPosition(id) }));
     }
   };
 
@@ -640,6 +657,14 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
   };
 
   const eligibleElectionPositions = positions;
+
+  const defaultWinnerSlotsForPosition = (positionId: string) => {
+    return Math.max(1, positions.find(position => position.id === positionId)?.winnerSlots || 1);
+  };
+
+  const setElectionPositionWinnerSlots = (positionId: string, value: number) => {
+    setElPositionWinnerSlots(slots => ({ ...slots, [positionId]: Math.max(1, Math.floor(Number(value) || 1)) }));
+  };
 
   const toDateTimeLocal = (value: string) => {
     if (!value) return "";
@@ -794,6 +819,7 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
               setElEnd(new Date(Date.now() + 2 * 24 * 3600 * 1000).toISOString().substring(0,16));
               setElSelectedParties([]);
               setElSelectedPositions([]);
+              setElPositionWinnerSlots({});
               setShowElectionModal(true);
             }}
             className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded border border-blue-700 cursor-pointer text-[10px] uppercase shadow-sm transition inline-flex items-center gap-1.5"
@@ -1196,7 +1222,7 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
                       <div className="flex flex-wrap gap-1">
                         {election.positions.map(pid => (
                           <span key={pid} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 font-semibold text-[9px] border border-blue-100 rounded-sm">
-                            {getPositionName(pid)}
+                            {getPositionName(pid)} - {Math.max(1, election.positionWinnerSlots?.[pid] || defaultWinnerSlotsForPosition(pid))} slot{Math.max(1, election.positionWinnerSlots?.[pid] || defaultWinnerSlotsForPosition(pid)) === 1 ? "" : "s"}
                           </span>
                         ))}
                       </div>
@@ -1927,22 +1953,34 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
                 ) : eligibleElectionPositions.length === 0 ? (
                   <p className="text-[10px] text-amber-700 font-mono">No positions have been configured yet.</p>
                 ) : (
-                  <div className="grid grid-cols-2 gap-1.5 max-h-[100px] overflow-y-auto border border-slate-200 p-2 rounded bg-slate-50">
+                  <div className="grid grid-cols-1 gap-1.5 max-h-[150px] overflow-y-auto border border-slate-200 p-2 rounded bg-slate-50">
                     {eligibleElectionPositions.map(pos => (
-                      <label key={pos.id} className="flex items-center space-x-1.5 text-[11px] font-sans text-slate-700 select-none cursor-pointer">
-                        <input 
-                          type="checkbox" 
-                          checked={elSelectedPositions.includes(pos.id)} 
-                          onChange={() => toggleElectionPositionMapping(pos.id)}
-                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" 
+                      <div key={pos.id} className="grid grid-cols-[1fr_74px] items-center gap-2 rounded border border-slate-200 bg-white px-2 py-1.5">
+                        <label className="flex min-w-0 items-center space-x-1.5 text-[11px] font-sans text-slate-700 select-none cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={elSelectedPositions.includes(pos.id)}
+                            onChange={() => toggleElectionPositionMapping(pos.id)}
+                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="min-w-0">
+                            <span className="block truncate font-bold text-slate-800">{pos.positionName}</span>
+                            {!positionHasSelectedPartyCandidate(pos.id) && (
+                              <span className="block text-[9px] text-amber-600">(no candidates yet)</span>
+                            )}
+                          </span>
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          disabled={!elSelectedPositions.includes(pos.id)}
+                          value={elPositionWinnerSlots[pos.id] || defaultWinnerSlotsForPosition(pos.id)}
+                          onChange={(event) => setElectionPositionWinnerSlots(pos.id, Number(event.target.value))}
+                          className="w-full rounded border border-slate-200 bg-slate-50 px-2 py-1 text-center text-[10px] font-mono font-bold text-slate-800 disabled:opacity-40"
+                          title="Winner slots for this election"
                         />
-                        <span>
-                          {pos.positionName}
-                          {!positionHasSelectedPartyCandidate(pos.id) && (
-                            <span className="ml-1 text-[9px] text-amber-600">(no candidates yet)</span>
-                          )}
-                        </span>
-                      </label>
+                      </div>
                     ))}
                   </div>
                 )}

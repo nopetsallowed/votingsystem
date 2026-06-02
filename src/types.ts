@@ -61,6 +61,7 @@ export interface Election {
   createdBy: string; // User ID
   partyIds?: string[]; // Participating party IDs
   positions: string[]; // List of Position IDs
+  positionWinnerSlots?: Record<string, number>; // Winner slots per position for this election
   createdAt: string;
   updatedAt: string;
 }

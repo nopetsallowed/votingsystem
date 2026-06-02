@@ -711,6 +711,31 @@ public class VotingController {
     return Math.max(1, winnerSlots);
   }
 
+  private static Map<String, Integer> normalizedElectionWinnerSlots(Database db, Election election, List<String> validPositionIds) {
+    Map<String, Integer> slots = new LinkedHashMap<>();
+    Map<String, Integer> requestedSlots = election.positionWinnerSlots == null ? Map.of() : election.positionWinnerSlots;
+    for (String positionId : validPositionIds) {
+      Integer requested = requestedSlots.get(positionId);
+      slots.put(positionId, requested == null ? defaultWinnerSlotsForPosition(db, positionId) : normalizeWinnerSlots(requested));
+    }
+    return slots;
+  }
+
+  private static int winnerSlotsForElectionPosition(Database db, Election election, String positionId) {
+    if (election.positionWinnerSlots != null && election.positionWinnerSlots.containsKey(positionId)) {
+      return normalizeWinnerSlots(election.positionWinnerSlots.get(positionId));
+    }
+    return defaultWinnerSlotsForPosition(db, positionId);
+  }
+
+  private static int defaultWinnerSlotsForPosition(Database db, String positionId) {
+    return db.positions.stream()
+        .filter(position -> position.id.equals(positionId))
+        .findFirst()
+        .map(position -> normalizeWinnerSlots(position.winnerSlots))
+        .orElse(1);
+  }
+
   private static Optional<User> findUser(Database db, String id) {
     return db.users.stream().filter(u -> u.id.equals(id)).findFirst();
   }
