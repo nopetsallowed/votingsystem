@@ -186,7 +186,7 @@ export default function VoterDashboard({
           enterVotingRoom(activeElectionId);
           refreshDashboardData();
         }
-      }, 3000);
+      }, 500);
 
     } catch (err: any) {
       setErrorNotice(err.message || "Ballot cast was rejected.");

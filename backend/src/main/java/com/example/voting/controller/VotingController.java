@@ -534,9 +534,9 @@ public class VotingController {
     List<String> orderedPositionIds = sortedElectionPositionIds(db, election);
     if (!orderedPositionIds.contains(positionId)) return error(HttpStatus.BAD_REQUEST, "This position is not mapped to the selected election");
     if (!candidateBelongsToElectionParty(election, candidate)) return error(HttpStatus.BAD_REQUEST, "Candidate selected is not part of a participating party for this election");
-    db.votes.add(new Vote("vt_" + id(), voter.id, candidateId, electionId, positionId, now(), ip(request)));
-    log(db, "CAST_VOTE", userId, userName(db, userId), "Success vote on position " + positionId + " in election " + electionId, ip(request));
-    store.save(db);
+    Vote vote = new Vote("vt_" + id(), voter.id, candidateId, electionId, positionId, now(), ip(request));
+    AuditLog auditLog = new AuditLog("lg_" + id(), "CAST_VOTE", userId, userName(db, userId), "Success vote on position " + positionId + " in election " + electionId, ip(request), now());
+    store.insertVoteWithAuditLog(vote, auditLog);
     return ResponseEntity.ok(Map.of("success", true, "message", "Your ballot choice was signed and recorded in our system. Thank you!"));
   }
 

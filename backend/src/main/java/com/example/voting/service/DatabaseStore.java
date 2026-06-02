@@ -246,6 +246,27 @@ public class DatabaseStore {
   }
 
   @Transactional
+  public synchronized void insertVoteWithAuditLog(Vote vote, AuditLog log) {
+    initializeSchema();
+    jdbc.update(
+        """
+        insert into votes (id, voter_id, candidate_id, election_id, position_id, timestamp, ip_address)
+        values (?, ?, ?, ?, ?, ?, ?)
+        """,
+        vote.id, vote.voterId, vote.candidateId, vote.electionId, vote.positionId, vote.timestamp, vote.ipAddress
+    );
+    if (log != null) {
+      jdbc.update(
+          """
+          insert into audit_logs (id, action, user_id, username, details, ip_address, timestamp)
+          values (?, ?, ?, ?, ?, ?, ?)
+          """,
+          log.id, log.action, log.userId, log.username, log.details, log.ipAddress, log.timestamp
+      );
+    }
+  }
+
+  @Transactional
   public synchronized void insertParty(Party party) {
     initializeSchema();
     jdbc.update(
