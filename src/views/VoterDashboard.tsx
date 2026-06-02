@@ -25,6 +25,8 @@ interface VoterDashboardProps {
   onNavigate: (view: string) => void;
   selectedElectionIdOnHub: string | null;
   onClearSelectedElection: () => void;
+  returnView?: string | null;
+  onClearReturnView?: () => void;
 }
 
 export default function VoterDashboard({ 
@@ -32,7 +34,9 @@ export default function VoterDashboard({
   voterUser, 
   onNavigate, 
   selectedElectionIdOnHub,
-  onClearSelectedElection 
+  onClearSelectedElection,
+  returnView,
+  onClearReturnView
 }: VoterDashboardProps) {
 
   // Dashboard listings
@@ -120,6 +124,10 @@ export default function VoterDashboard({
     setCandidatesForPosition([]);
     setSelectedPositionForVote(null);
     refreshDashboardData();
+    if (returnView) {
+      onNavigate(returnView);
+      onClearReturnView?.();
+    }
   };
 
   // View Candidates contesting for a specific position seat

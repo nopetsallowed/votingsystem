@@ -21,6 +21,8 @@ export default function App() {
 
   // Deep routing parameter
   const [hubSelectedElectionId, setHubSelectedElectionId] = useState<string | null>(null);
+  const [voterBoothReturnView, setVoterBoothReturnView] = useState<string | null>(null);
+  const [previousView, setPreviousView] = useState<string>("landing");
 
   // Check and restore logged in user profile on load
   useEffect(() => {
@@ -109,6 +111,7 @@ export default function App() {
 
   const navigateToView = (view: string) => {
     // If guest attempts to open voter-dashboard or admin corridors, reroute to signup authentication
+    setPreviousView(currentView);
     if (!token && (view === "voter-dashboard" || view === "admin-dashboard")) {
       setCurrentView("login");
     } else {
@@ -120,19 +123,27 @@ export default function App() {
   const handleSelectElectionOnLanding = (electionId: string) => {
     if (!token) {
       // If unauthorized guest user clicks vote, prompt login first
+      setPreviousView(currentView);
       setCurrentView("login");
     } else if (user?.role === "VOTER") {
       // Voter, open their station booth
       setHubSelectedElectionId(electionId);
+      setVoterBoothReturnView(currentView);
+      setPreviousView(currentView);
       setCurrentView("voter-dashboard");
     } else {
       // Admin corridor, let them examine metrics or manage it
+      setPreviousView(currentView);
       setCurrentView("admin-dashboard");
     }
   };
 
   const clearSelectedElectionOnLanding = () => {
     setHubSelectedElectionId(null);
+  };
+
+  const clearVoterBoothReturnView = () => {
+    setVoterBoothReturnView(null);
   };
 
   // Match the core container based on currentView route
@@ -143,7 +154,7 @@ export default function App() {
       return (
         <ResultsPage 
           electionId={electionId} 
-          onNavigateBack={() => navigateToView("landing")} 
+          onNavigateBack={() => navigateToView(previousView || "landing")} 
         />
       );
     }
@@ -180,6 +191,8 @@ export default function App() {
             onNavigate={navigateToView}
             selectedElectionIdOnHub={hubSelectedElectionId}
             onClearSelectedElection={clearSelectedElectionOnLanding}
+            returnView={voterBoothReturnView}
+            onClearReturnView={clearVoterBoothReturnView}
           />
         ) : (
           <AuthPage initialMode="login" onAuthSuccess={handleAuthSuccess} onNavigate={navigateToView} />
