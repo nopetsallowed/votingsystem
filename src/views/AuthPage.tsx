@@ -128,19 +128,6 @@ export default function AuthPage({ initialMode, onAuthSuccess, onNavigate }: Aut
     }
   };
 
-  const prefillAsRole = (role: "super" | "admin" | "voter") => {
-    if (role === "super") {
-      setLoginUsername("superadmin");
-      setLoginPassword("admin123");
-    } else if (role === "admin") {
-      setLoginUsername("electionadmin");
-      setLoginPassword("admin123");
-    } else {
-      setLoginUsername("alice_voter");
-      setLoginPassword("voter123");
-    }
-  };
-
   return (
     <div className="-mx-4 sm:-mx-6 lg:-mx-8 -my-4 min-h-[calc(100vh-3.5rem)] relative flex items-center justify-center overflow-hidden bg-slate-100 px-4 py-8">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.96),rgba(241,245,249,0.92)_50%,rgba(226,232,240,0.85))]" />
@@ -195,18 +182,6 @@ export default function AuthPage({ initialMode, onAuthSuccess, onNavigate }: Aut
                   : "Join the secure digital election system"}
               </p>
             </div>
-
-            {/* Demo Accounts */}
-            {mode === "login" && (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                <p className="mb-3 text-center text-xs font-semibold uppercase tracking-widest text-slate-500">Quick Demo Accounts</p>
-                <div className="flex flex-wrap gap-2 justify-center">
-                  <DemoButton onClick={() => prefillAsRole("super")}>Super Admin</DemoButton>
-                  <DemoButton onClick={() => prefillAsRole("admin")}>Election Admin</DemoButton>
-                  <DemoButton onClick={() => prefillAsRole("voter")}>Sample Voter</DemoButton>
-                </div>
-              </div>
-            )}
 
             {error && <Message tone="error">{error}</Message>}
             {success && <Message tone="success">{success}</Message>}
@@ -370,18 +345,6 @@ function Message({ tone, children }: { tone: "error" | "success"; children: Reac
       <AlertCircle className={`mt-0.5 h-5 w-5 flex-shrink-0 ${isError ? "text-red-500" : "text-green-600"}`} />
       <span>{children}</span>
     </div>
-  );
-}
-
-function DemoButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="rounded-2xl border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition"
-    >
-      {children}
-    </button>
   );
 }
 
