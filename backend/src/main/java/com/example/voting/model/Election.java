@@ -1,7 +1,9 @@
 package com.example.voting.model;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class Election {
   public String id;
@@ -14,6 +16,7 @@ public class Election {
   public String createdBy;
   public List<String> partyIds = new ArrayList<>();
   public List<String> positions = new ArrayList<>();
+  public Map<String, Integer> positionWinnerSlots = new HashMap<>();
   public String createdAt;
   public String updatedAt;
 }

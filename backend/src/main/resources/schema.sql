@@ -45,6 +45,7 @@ create table if not exists positions (
   id varchar(64) primary key,
   position_name varchar(191) not null unique,
   description text,
+  winner_slots int not null default 1,
   created_at varchar(64) not null
 );
 
@@ -82,6 +83,7 @@ create table if not exists election_positions (
   election_id varchar(64) not null,
   position_id varchar(64) not null,
   sort_order int not null,
+  winner_slots int not null default 1,
   primary key (election_id, position_id)
 );
 

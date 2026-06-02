@@ -46,6 +46,7 @@ export interface Position {
   id: string;
   positionName: string;
   description?: string;
+  winnerSlots: number;
   createdAt: string;
 }
 
@@ -113,6 +114,7 @@ export interface ElectionResult {
 export interface PositionResult {
   positionId: string;
   positionName: string;
+  winnerSlots: number;
   totalVotes: number;
   candidates: ElectionResult[];
 }

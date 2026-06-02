@@ -227,7 +227,12 @@ export default function ResultsPage({ electionId, onNavigateBack }: ResultsPageP
             {data.positions.map((pos: any) => (
               <div key={pos.positionId} className="space-y-2">
                 <div className="p-2 bg-slate-50 rounded flex justify-between items-center border border-slate-200 font-bold">
-                  <h4 className="text-[11px] text-slate-950 uppercase tracking-tight">{pos.positionName} seat</h4>
+                  <div>
+                    <h4 className="text-[11px] text-slate-950 uppercase tracking-tight">{pos.positionName} seat</h4>
+                    <p className="text-[9px] font-bold uppercase tracking-wide text-blue-600">
+                      Top {Math.max(1, pos.winnerSlots || 1)} winner{Math.max(1, pos.winnerSlots || 1) === 1 ? "" : "s"} certified
+                    </p>
+                  </div>
                   <span className="text-[10px] font-mono text-slate-500">{pos.totalVotes} checked ballots</span>
                 </div>
 
@@ -238,8 +243,8 @@ export default function ResultsPage({ electionId, onNavigateBack }: ResultsPageP
                     pos.candidates.map((cand: any, idx: number) => (
                       <div key={cand.candidateId} className="border border-slate-200 p-3 rounded flex items-center justify-between shadow-sm relative overflow-hidden bg-white hover:bg-slate-50/40 transition">
                         
-                        {/* Winner overlay indicator icon for the highest polling candidate */}
-                        {idx === 0 && cand.voteCount > 0 && (
+                        {/* Winner overlay indicator icon for candidates inside the configured slot count */}
+                        {idx < Math.max(1, pos.winnerSlots || 1) && cand.voteCount > 0 && (
                           <div className="absolute -top-3 -right-3 text-[10px] font-bold text-blue-800 uppercase tracking-widest leading-none bg-blue-100 flex items-end justify-start p-3 bg-gradient-to-br from-transparent to-blue-50 shadow h-12 w-12 rotate-45 pointer-events-none">
                             <Star className="w-4 h-4 text-blue-600 mt-2 shrink-0 select-none fill-blue-600 rotate-12" />
                           </div>

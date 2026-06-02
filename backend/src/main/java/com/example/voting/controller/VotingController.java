@@ -283,6 +283,7 @@ public class VotingController {
     if (blank(body.positionName)) return error(HttpStatus.BAD_REQUEST, "Position Name is required");
     if (db.positions.stream().anyMatch(p -> p.positionName.equalsIgnoreCase(body.positionName))) return error(HttpStatus.BAD_REQUEST, "Position Name already exists");
     body.id = "p_" + id();
+    body.winnerSlots = normalizeWinnerSlots(body.winnerSlots);
     body.createdAt = now();
     db.positions.add(body);
     store.save(db);
@@ -299,6 +300,7 @@ public class VotingController {
     }
     if (!blank(body.positionName)) position.positionName = body.positionName;
     if (body.description != null) position.description = body.description;
+    if (body.winnerSlots > 0) position.winnerSlots = normalizeWinnerSlots(body.winnerSlots);
     store.save(db);
     return ResponseEntity.ok(position);
   }
@@ -394,6 +396,7 @@ public class VotingController {
     body.id = "el_" + id();
     body.partyIds = validPartyIds;
     body.positions = validPositionIds;
+    body.positionWinnerSlots = normalizedElectionWinnerSlots(db, body, validPositionIds);
     body.banner = orDefault(body.banner, "");
     body.status = "SCHEDULED";
     body.createdBy = adminId;
@@ -428,6 +431,7 @@ public class VotingController {
     election.banner = orDefault(body.banner, "");
     election.partyIds = validPartyIds;
     election.positions = validPositionIds;
+    election.positionWinnerSlots = normalizedElectionWinnerSlots(db, body, validPositionIds);
     election.updatedAt = now();
     log(db, "UPDATE_ELECTION", adminId, userName(db, adminId), "Updated election profile: " + election.electionName, ip(request));
     store.save(db);
@@ -483,6 +487,7 @@ public class VotingController {
       Position position = db.positions.stream().filter(p -> p.id.equals(posId)).findFirst().orElse(null);
       if (position == null) return null;
       Map<String, Object> item = objectMap(position);
+      item.put("winnerSlots", winnerSlotsForElectionPosition(db, election, posId));
       item.put("voted", db.votes.stream().anyMatch(v -> v.voterId.equals(voter.id) && v.electionId.equals(id) && v.positionId.equals(posId)));
       List<Map<String, Object>> candidates = db.candidates.stream()
           .filter(c -> c.positionId.equals(posId))
@@ -609,7 +614,8 @@ public class VotingController {
       item.put("percentage", oneDecimal(pct));
       return item;
     }).sorted(Comparator.comparingInt((Map<String, Object> item) -> (Integer) item.get("voteCount")).reversed()).toList();
-    return Map.of("positionId", posId, "positionName", position.positionName, "totalVotes", positionVotes.size(), "candidates", candidates);
+    int winnerSlots = winnerSlotsForElectionPosition(db, election, posId);
+    return Map.of("positionId", posId, "positionName", position.positionName, "winnerSlots", winnerSlots, "totalVotes", positionVotes.size(), "candidates", candidates);
   }
 
   private static boolean candidateBelongsToElectionParty(Election election, Candidate candidate) {
@@ -699,6 +705,10 @@ public class VotingController {
 
   private static double oneDecimal(double value) {
     return Math.round(value * 10.0) / 10.0;
+  }
+
+  private static int normalizeWinnerSlots(int winnerSlots) {
+    return Math.max(1, winnerSlots);
   }
 
   private static Optional<User> findUser(Database db, String id) {

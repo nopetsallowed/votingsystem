@@ -441,6 +441,9 @@ export default function VoterDashboard({
                               <div>
                                 <h4 className="font-bold text-slate-950 text-base leading-tight">{pos.positionName}</h4>
                                 <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">{pos.description || "Select one candidate for this position."}</p>
+                                <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-blue-600">
+                                  {Math.max(1, pos.winnerSlots || 1)} winner slot{Math.max(1, pos.winnerSlots || 1) === 1 ? "" : "s"}
+                                </p>
                               </div>
                               {pos.voted ? (
                                 <span className="px-1.5 py-0.5 bg-green-100 text-green-800 text-[8px] font-bold rounded uppercase tracking-wide border border-green-200">

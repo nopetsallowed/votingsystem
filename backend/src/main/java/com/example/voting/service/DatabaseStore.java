@@ -52,18 +52,28 @@ public class DatabaseStore {
     db.candidates = jdbc.query("select * from candidates order by created_at", this::mapCandidate);
     db.elections = jdbc.query("select * from elections order by created_at", this::mapElection);
 
-    Map<String, List<String>> electionPositions = jdbc.query(
-        "select election_id, position_id from election_positions order by election_id, sort_order",
+    Map<String, List<Map<String, Object>>> electionPositions = jdbc.query(
+        "select election_id, position_id, winner_slots from election_positions order by election_id, sort_order",
         rs -> {
-          java.util.Map<String, List<String>> positions = new java.util.HashMap<>();
+          java.util.Map<String, List<Map<String, Object>>> positions = new java.util.HashMap<>();
           while (rs.next()) {
-            positions.computeIfAbsent(rs.getString("election_id"), key -> new ArrayList<>()).add(rs.getString("position_id"));
+            Map<String, Object> item = new HashMap<>();
+            item.put("positionId", rs.getString("position_id"));
+            item.put("winnerSlots", normalizeWinnerSlots(rs.getInt("winner_slots")));
+            positions.computeIfAbsent(rs.getString("election_id"), key -> new ArrayList<>()).add(item);
           }
           return positions;
         }
     );
-    Map<String, List<String>> positionsByElection = electionPositions == null ? Map.of() : electionPositions;
-    db.elections.forEach(election -> election.positions = new ArrayList<>(positionsByElection.getOrDefault(election.id, List.of())));
+    Map<String, List<Map<String, Object>>> positionsByElection = electionPositions == null ? Map.of() : electionPositions;
+    db.elections.forEach(election -> {
+      List<Map<String, Object>> mappedPositions = positionsByElection.getOrDefault(election.id, List.of());
+      election.positions = new ArrayList<>(mappedPositions.stream().map(item -> item.get("positionId").toString()).toList());
+      election.positionWinnerSlots = new HashMap<>();
+      for (Map<String, Object> item : mappedPositions) {
+        election.positionWinnerSlots.put(item.get("positionId").toString(), normalizeWinnerSlots((Integer) item.get("winnerSlots")));
+      }
+    });
 
     Map<String, List<String>> electionParties = jdbc.query(
         "select election_id, party_id from election_parties order by election_id, sort_order",
@@ -177,8 +187,8 @@ public class DatabaseStore {
 
     for (Position position : db.positions) {
       jdbc.update(
-          "insert into positions (id, position_name, description, created_at) values (?, ?, ?, ?)",
-          position.id, position.positionName, position.description, position.createdAt
+          "insert into positions (id, position_name, description, winner_slots, created_at) values (?, ?, ?, ?, ?)",
+          position.id, position.positionName, position.description, normalizeWinnerSlots(position.winnerSlots), position.createdAt
       );
     }
 
@@ -208,11 +218,13 @@ public class DatabaseStore {
 
       if (election.positions == null) election.positions = new ArrayList<>();
       if (election.partyIds == null) election.partyIds = new ArrayList<>();
+      if (election.positionWinnerSlots == null) election.positionWinnerSlots = new HashMap<>();
 
       for (int i = 0; i < election.positions.size(); i++) {
+        String positionId = election.positions.get(i);
         jdbc.update(
-            "insert into election_positions (election_id, position_id, sort_order) values (?, ?, ?)",
-            election.id, election.positions.get(i), i
+            "insert into election_positions (election_id, position_id, sort_order, winner_slots) values (?, ?, ?, ?)",
+            election.id, positionId, i, winnerSlotsForElectionPosition(election, positionId, db.positions)
         );
       }
 
@@ -402,6 +414,7 @@ public class DatabaseStore {
           id varchar(64) primary key,
           position_name varchar(191) not null unique,
           description text,
+          winner_slots int not null default 1,
           created_at varchar(64) not null
         )
         """);
@@ -442,6 +455,7 @@ public class DatabaseStore {
           election_id varchar(64) not null,
           position_id varchar(64) not null,
           sort_order int not null,
+          winner_slots int not null default 1,
           primary key (election_id, position_id)
         )
         """);
@@ -476,6 +490,8 @@ public class DatabaseStore {
         )
         """);
     ensureLargeImageColumns();
+    ensureWinnerSlotsColumn();
+    ensureElectionPositionWinnerSlotsColumn();
   }
 
   private void ensureLargeImageColumns() {
@@ -485,6 +501,36 @@ public class DatabaseStore {
     ensureLongTextColumn("candidates", "photo");
     ensureLongTextColumn("candidates", "poster");
     ensureLongTextColumn("elections", "banner");
+  }
+
+  private void ensureWinnerSlotsColumn() {
+    String dataType = jdbc.query(
+        """
+        select data_type from information_schema.columns
+        where table_schema = database() and table_name = 'positions' and column_name = 'winner_slots'
+        """,
+        rs -> rs.next() ? rs.getString("data_type") : null
+    );
+
+    if (dataType == null) {
+      jdbc.execute("alter table positions add column winner_slots int not null default 1");
+    }
+    jdbc.update("update positions set winner_slots = 1 where winner_slots is null or winner_slots < 1");
+  }
+
+  private void ensureElectionPositionWinnerSlotsColumn() {
+    String dataType = jdbc.query(
+        """
+        select data_type from information_schema.columns
+        where table_schema = database() and table_name = 'election_positions' and column_name = 'winner_slots'
+        """,
+        rs -> rs.next() ? rs.getString("data_type") : null
+    );
+
+    if (dataType == null) {
+      jdbc.execute("alter table election_positions add column winner_slots int not null default 1");
+    }
+    jdbc.update("update election_positions set winner_slots = 1 where winner_slots is null or winner_slots < 1");
   }
 
   private void ensureLongTextColumn(String tableName, String columnName) {
@@ -555,6 +601,7 @@ public class DatabaseStore {
         rs.getString("id"),
         rs.getString("position_name"),
         rs.getString("description"),
+        normalizeWinnerSlots(rs.getInt("winner_slots")),
         rs.getString("created_at")
     );
   }
@@ -780,11 +827,16 @@ public class DatabaseStore {
         .findFirst()
         .orElse(null);
     if (existingById != null) {
+      boolean changed = false;
       if (existingById.createdAt == null) {
         existingById.createdAt = position.createdAt;
-        return true;
+        changed = true;
       }
-      return false;
+      if (existingById.winnerSlots < 1) {
+        existingById.winnerSlots = 1;
+        changed = true;
+      }
+      return changed;
     }
 
     Position existingPosition = db.positions.stream()
@@ -799,6 +851,7 @@ public class DatabaseStore {
         changed = true;
       }
       existingPosition.createdAt = existingPosition.createdAt == null ? position.createdAt : existingPosition.createdAt;
+      if (existingPosition.winnerSlots < 1) existingPosition.winnerSlots = 1;
       return changed;
     }
     db.positions.add(position);
@@ -833,11 +886,30 @@ public class DatabaseStore {
       if (election.positions != null) {
         election.positions.replaceAll(positionId -> oldPositionId.equals(positionId) ? newPositionId : positionId);
       }
+      if (election.positionWinnerSlots != null && election.positionWinnerSlots.containsKey(oldPositionId)) {
+        Integer winnerSlots = election.positionWinnerSlots.remove(oldPositionId);
+        election.positionWinnerSlots.put(newPositionId, winnerSlots);
+      }
     });
   }
 
   private Candidate candidate(String id, String fullName, String partyId, String positionId, String color, String initials, String biography, String platform, String achievements, String education, String contact, String social, String now) {
     return new Candidate(id, fullName, partyId, positionId, avatar(color, initials), candidatePoster(color, fullName), biography, platform, achievements, education, contact, social, now, now);
+  }
+
+  private static int normalizeWinnerSlots(int winnerSlots) {
+    return Math.max(1, winnerSlots);
+  }
+
+  private static int winnerSlotsForElectionPosition(Election election, String positionId, List<Position> positions) {
+    if (election.positionWinnerSlots != null && election.positionWinnerSlots.containsKey(positionId)) {
+      return normalizeWinnerSlots(election.positionWinnerSlots.get(positionId));
+    }
+    return positions.stream()
+        .filter(position -> position.id.equals(positionId))
+        .findFirst()
+        .map(position -> normalizeWinnerSlots(position.winnerSlots))
+        .orElse(1);
   }
 
   private static String partyLogo(String color, String acronym) {

@@ -72,6 +72,7 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
   // Position Form
   const [positionName, setPositionName] = useState("");
   const [positionDesc, setPositionDesc] = useState("");
+  const [positionWinnerSlots, setPositionWinnerSlots] = useState(1);
 
   // Election Form
   const [elName, setElName] = useState("");
@@ -431,6 +432,7 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
     setErrorNotice("");
     const normalizedPositionName = positionName.trim();
     const normalizedPositionDesc = positionDesc.trim();
+    const normalizedWinnerSlots = Math.max(1, Math.floor(Number(positionWinnerSlots) || 1));
     if (!normalizedPositionName) {
       setErrorNotice("Position name is required.");
       return;
@@ -446,13 +448,14 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
           "Content-Type": "application/json",
           "x-admin-id": adminUser.id
         },
-        body: JSON.stringify({ positionName: normalizedPositionName, description: normalizedPositionDesc })
+        body: JSON.stringify({ positionName: normalizedPositionName, description: normalizedPositionDesc, winnerSlots: normalizedWinnerSlots })
       });
       const data = await readApiResponse(res);
       if (!res.ok) throw new Error(data.error);
 
       setPositionName("");
       setPositionDesc("");
+      setPositionWinnerSlots(1);
       setEditingPositionId(null);
       setShowPositionModal(false);
       setSuccessNotice(editingPositionId ? "Electoral seat position updated." : "New governmental position seat created.");
@@ -471,6 +474,7 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
     setEditingPositionId(position.id);
     setPositionName(position.positionName);
     setPositionDesc(position.description || "");
+    setPositionWinnerSlots(Math.max(1, position.winnerSlots || 1));
     setShowPositionModal(true);
   };
 
@@ -846,6 +850,7 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
               setEditingPositionId(null);
               setPositionName("");
               setPositionDesc("");
+              setPositionWinnerSlots(1);
               setShowPositionModal(true);
             }}
             className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold rounded border border-slate-200 cursor-pointer text-[10px] uppercase transition inline-flex items-center gap-1.5"
@@ -975,6 +980,9 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
                       <div>
                         <p className="font-bold text-slate-800">{p.positionName}</p>
                         <p className="text-[10px] text-slate-400">{p.description || "No description provided."}</p>
+                        <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-blue-600">
+                          {Math.max(1, p.winnerSlots || 1)} winner slot{Math.max(1, p.winnerSlots || 1) === 1 ? "" : "s"}
+                        </p>
                       </div>
                       <div className="flex items-center gap-1">
                         <button
@@ -1472,6 +1480,19 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
                   rows={2}
                   className="w-full px-2 py-1.5 border border-slate-200 rounded focus:outline-none focus:border-slate-400 text-xs font-sans"
                 />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase font-mono">Winner slots needed</label>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  required
+                  value={positionWinnerSlots}
+                  onChange={(e) => setPositionWinnerSlots(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
+                  className="w-full px-2 py-1.5 border border-slate-200 rounded focus:outline-none focus:border-slate-400 text-xs font-mono"
+                />
+                <p className="text-[9px] text-slate-400 leading-snug">Applies to every election using this seat. Results will mark the top candidates up to this number as winners.</p>
               </div>
               <button 
                 type="submit" 
