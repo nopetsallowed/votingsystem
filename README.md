@@ -1,12 +1,6 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
-
 # Online Voting System
 
 This app uses a React frontend and a Java Spring Boot backend with MySQL persistence.
-
-View your app in AI Studio: https://ai.studio/apps/58ff0045-4e1e-40ee-b63c-1538ac754951
 
 ## Run Locally
 
