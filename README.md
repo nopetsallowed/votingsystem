@@ -51,3 +51,25 @@ Default accounts:
 - `alice_voter` / `voter123`
 
 The Java backend stores app data in normalized MySQL tables for users, voters, parties, positions, candidates, elections, election mappings, votes, and audit logs. On first run, it creates the tables and seeds default demo data. The old root `database.json` file is not used by the web application.
+
+
+Run them in two separate PowerShell terminals.
+
+Terminal 1: Backend
+
+cd C:\Users\kmoy3\Downloads\online-voting-system\backend
+mvn spring-boot:run
+Backend will run at:
+
+http://localhost:8080
+Test:
+
+http://localhost:8080/api/health
+Terminal 2: Frontend
+
+cd C:\Users\kmoy3\Downloads\online-voting-system
+npm run dev
+Frontend will usually run at:
+
+http://localhost:5173
+Make sure WAMP/MySQL is running before starting backend.

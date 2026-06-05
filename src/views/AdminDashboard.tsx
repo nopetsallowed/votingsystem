@@ -582,34 +582,39 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
 
   // Activate / Close Elections
   const activateElection = async (id: string) => {
+    setErrorNotice("");
     try {
       const res = await apiFetch(`/api/admin/elections/${id}/activate`, {
         method: "POST",
         headers: { "x-admin-id": adminUser.id }
       });
-      if (res.ok) {
-        setSuccessNotice("Election active! Voters are now authorized to register ballot cards.");
-        reloadAll();
-        setTimeout(() => setSuccessNotice(""), 3000);
-      }
-    } catch (e) {
-      console.error(e);
+      const data = await readApiResponse(res);
+      if (!res.ok) throw new Error(data.error || "Election activation failed.");
+
+      setSuccessNotice("Election active! Voters are now authorized to register ballot cards.");
+      reloadAll();
+      setTimeout(() => setSuccessNotice(""), 3000);
+    } catch (err: any) {
+      setErrorNotice(adminErrorMessage(err, "Election activation failed."));
     }
   };
 
   const closeElection = async (id: string) => {
+    if (!window.confirm("Close this election now? This locks ballot intake and finalizes the current results.")) return;
+    setErrorNotice("");
     try {
       const res = await apiFetch(`/api/admin/elections/${id}/close`, {
         method: "POST",
         headers: { "x-admin-id": adminUser.id }
       });
-      if (res.ok) {
-        setSuccessNotice("Ballot receipts locked. Certified final results calculated.");
-        reloadAll();
-        setTimeout(() => setSuccessNotice(""), 3000);
-      }
-    } catch (e) {
-      console.error(e);
+      const data = await readApiResponse(res);
+      if (!res.ok) throw new Error(data.error || "Election closing failed.");
+
+      setSuccessNotice("Ballot receipts locked. Certified final results calculated.");
+      reloadAll();
+      setTimeout(() => setSuccessNotice(""), 3000);
+    } catch (err: any) {
+      setErrorNotice(adminErrorMessage(err, "Election closing failed."));
     }
   };
 
@@ -1287,8 +1292,13 @@ export default function AdminDashboard({ adminToken, adminUser, onNavigate }: Ad
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => editElectionOpen(election)}
-                      className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-800 cursor-pointer"
-                      title="Edit election"
+                      disabled={election.status !== "SCHEDULED"}
+                      className={`p-1 rounded ${
+                        election.status === "SCHEDULED"
+                          ? "text-slate-500 hover:bg-slate-100 hover:text-slate-800 cursor-pointer"
+                          : "text-slate-300 cursor-not-allowed"
+                      }`}
+                      title={election.status === "SCHEDULED" ? "Edit election" : "Active and closed elections cannot be edited"}
                     >
                       <Edit3 className="w-3.5 h-3.5" />
                     </button>

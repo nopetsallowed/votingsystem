@@ -12,6 +12,9 @@ import com.example.voting.model.Voter;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -93,9 +96,14 @@ public class DatabaseStore {
 
     if (db.users.isEmpty()) {
       db = seed();
+      closeExpiredActiveElections(db);
       save(db);
-    } else if (ensureTestingElectionData(db)) {
-      save(db);
+    } else {
+      boolean changed = ensureTestingElectionData(db);
+      changed |= closeExpiredActiveElections(db);
+      if (changed) {
+        save(db);
+      }
     }
 
     return db;
@@ -784,6 +792,47 @@ public class DatabaseStore {
     }
 
     return changed;
+  }
+
+  private boolean closeExpiredActiveElections(Database db) {
+    String now = Instant.now().toString();
+    boolean changed = false;
+
+    for (Election election : db.elections) {
+      if (!"ACTIVE".equals(election.status) || !electionEndHasPassed(election.endDate)) continue;
+      election.status = "CLOSED";
+      election.updatedAt = now;
+      db.auditLogs.add(new AuditLog(
+          "lg_auto_close_" + System.currentTimeMillis() + "_" + election.id,
+          "SYSTEM_CLOSE_ELECTION",
+          "system",
+          "system",
+          "Automatically closed election after configured deadline: " + election.electionName,
+          "127.0.0.1",
+          now
+      ));
+      changed = true;
+    }
+
+    return changed;
+  }
+
+  private boolean electionEndHasPassed(String endDate) {
+    if (endDate == null || endDate.isBlank()) return false;
+    Instant electionEnd = parseElectionDate(endDate);
+    return electionEnd != null && !electionEnd.isAfter(Instant.now());
+  }
+
+  private Instant parseElectionDate(String value) {
+    try {
+      return Instant.parse(value);
+    } catch (DateTimeParseException ignored) {
+      try {
+        return LocalDateTime.parse(value).atZone(ZoneId.systemDefault()).toInstant();
+      } catch (DateTimeParseException ignoredAgain) {
+        return null;
+      }
+    }
   }
 
   private boolean addPartyIfMissing(Database db, Party party) {

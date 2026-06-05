@@ -413,6 +413,9 @@ public class VotingController {
     Database db = store.load();
     Election election = db.elections.stream().filter(e -> e.id.equals(id)).findFirst().orElse(null);
     if (election == null) return error(HttpStatus.NOT_FOUND, "Election not found");
+    if (!"SCHEDULED".equals(election.status)) {
+      return error(HttpStatus.BAD_REQUEST, "Only scheduled elections can be edited. Close results are final once voting starts.");
+    }
     if (blank(body.electionName) || blank(body.startDate) || blank(body.endDate) || body.partyIds == null || body.partyIds.isEmpty() || body.positions == null || body.positions.isEmpty()) {
       return error(HttpStatus.BAD_REQUEST, "Election name, bounds, participating parties, and mapped positions are required");
     }
@@ -440,12 +443,34 @@ public class VotingController {
 
   @PostMapping("/admin/elections/{id}/activate")
   ResponseEntity<?> activateElection(@PathVariable String id, @RequestHeader(value = "x-admin-id", defaultValue = "u_sa") String adminId, HttpServletRequest request) {
-    return setElectionStatus(id, "ACTIVE", "ACTIVATE_ELECTION", "Activated election: ", adminId, request);
+    Database db = store.load();
+    Election election = db.elections.stream().filter(e -> e.id.equals(id)).findFirst().orElse(null);
+    if (election == null) return error(HttpStatus.NOT_FOUND, "Election not found");
+    if ("CLOSED".equals(election.status)) return error(HttpStatus.BAD_REQUEST, "Closed elections cannot be reopened");
+    if ("ACTIVE".equals(election.status)) return ResponseEntity.ok(Map.of("success", true, "election", election));
+
+    election.status = "ACTIVE";
+    election.updatedAt = now();
+    log(db, "ACTIVATE_ELECTION", adminId, userName(db, adminId), "Activated election: " + election.electionName, ip(request));
+    store.save(db);
+    return ResponseEntity.ok(Map.of("success", true, "election", election));
   }
 
   @PostMapping("/admin/elections/{id}/close")
   ResponseEntity<?> closeElection(@PathVariable String id, @RequestHeader(value = "x-admin-id", defaultValue = "u_sa") String adminId, HttpServletRequest request) {
-    return setElectionStatus(id, "CLOSED", "CLOSE_ELECTION", "Closed election results collection: ", adminId, request);
+    Database db = store.load();
+    Election election = db.elections.stream().filter(e -> e.id.equals(id)).findFirst().orElse(null);
+    if (election == null) return error(HttpStatus.NOT_FOUND, "Election not found");
+    if ("CLOSED".equals(election.status)) return ResponseEntity.ok(Map.of("success", true, "election", election));
+    if (!"ACTIVE".equals(election.status)) return error(HttpStatus.BAD_REQUEST, "Only active elections can be closed");
+
+    String now = now();
+    election.status = "CLOSED";
+    election.endDate = now;
+    election.updatedAt = now;
+    log(db, "CLOSE_ELECTION", adminId, userName(db, adminId), "Closed election results collection: " + election.electionName, ip(request));
+    store.save(db);
+    return ResponseEntity.ok(Map.of("success", true, "election", election));
   }
 
   @DeleteMapping("/admin/elections/{id}")
@@ -579,17 +604,6 @@ public class VotingController {
   @GetMapping("/health")
   Map<String, String> health() {
     return Map.of("status", "healthy", "host", "spring-boot-mysql");
-  }
-
-  private ResponseEntity<?> setElectionStatus(String id, String status, String action, String detailsPrefix, String adminId, HttpServletRequest request) {
-    Database db = store.load();
-    Election election = db.elections.stream().filter(e -> e.id.equals(id)).findFirst().orElse(null);
-    if (election == null) return error(HttpStatus.NOT_FOUND, "Election not found");
-    election.status = status;
-    election.updatedAt = now();
-    log(db, action, adminId, userName(db, adminId), detailsPrefix + election.electionName, ip(request));
-    store.save(db);
-    return ResponseEntity.ok(Map.of("success", true, "election", election));
   }
 
   private static void applyCandidateBody(Candidate candidate, Map<String, Object> body) {
